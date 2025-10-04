@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         UserRole   @default(USER)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  vehicles     Vehicle[]
+  maintenances MaintenanceRecord[]
+  certificates Certificate[]
+}
+
+enum UserRole {
+  USER  @map("user")
+  ADMIN @map("admin")
+}
+
+model Vehicle {
+  id               String              @id @default(uuid())
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plate            String              @unique
+  model            String
+  manufacturer     String
+  year             Int
+  category         VehicleCategory
+  averageMonthlyKm Int
+  photoFileName    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  maintenances MaintenanceRecord[]
+  certificates Certificate[]
+}
+
+enum VehicleCategory {
+  CAR        @map("car")
+  MOTORCYCLE @map("motorcycle")
+  TRUCK      @map("truck")
+  OTHER      @map("other")
+}
+
+model MaintenanceRecord {
+  id               String   @id @default(uuid())
+  vehicleId        String
+  userId           String
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceType      String
+  serviceDate      DateTime
+  odometer         Int
+  workshop         String
+  notes            String?
+  documentFileName String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Certificate {
+  id                  String            @id @default(uuid())
+  vehicleId           String
+  userId              String
+  vehicle             Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehiclePlate        String
+  generatedAt         DateTime @default(now())
+  maintenanceCount    Int
+  lastMaintenanceDate DateTime?
+  overdue             Boolean
+}
