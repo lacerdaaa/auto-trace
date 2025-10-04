@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
-import jwt, { SignOptions, type Secret } from 'jsonwebtoken';
-import { User } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import type { Secret, SignOptions } from 'jsonwebtoken';
+import type { User } from '@prisma/client';
 import { JWT_EXPIRES_IN, JWT_SECRET } from './config.ts';
 
 export interface AuthTokenPayload {
@@ -26,11 +27,15 @@ export const createAuthToken = (user: Pick<User, 'id' | 'email' | 'role'>): stri
   };
 
   const options: SignOptions = {
-    subject: String(user.id), 
-    expiresIn: (Number(JWT_EXPIRES_IN)),
+    subject: String(user.id),
   };
 
-  return jwt.sign(payload, JWT_SECRET, options);
+  if (JWT_EXPIRES_IN) {
+    type JwtExpiresIn = Exclude<SignOptions['expiresIn'], undefined>;
+    options.expiresIn = JWT_EXPIRES_IN as unknown as JwtExpiresIn;
+  }
+
+  return jwt.sign(payload, JWT_SECRET as Secret, options);
 };
 
 export const decodeAuthToken = (token: string): AuthTokenPayload => {

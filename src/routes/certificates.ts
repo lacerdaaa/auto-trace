@@ -1,4 +1,4 @@
-import { Certificate, MaintenanceRecord, Vehicle } from '@prisma/client';
+import type { Certificate, MaintenanceRecord, Vehicle } from '@prisma/client';
 import { Router } from 'express';
 import { authenticate } from '../middlewares/authenticate.ts';
 import { HttpError } from '../httpErrors.ts';

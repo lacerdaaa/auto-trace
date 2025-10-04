@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import type { User } from '@prisma/client';
 import { Router } from 'express';
 import { authenticate } from '../middlewares/authenticate.ts';
 import { HttpError } from '../httpErrors.ts';

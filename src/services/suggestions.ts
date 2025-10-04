@@ -1,5 +1,6 @@
-import { MaintenanceRecord, Vehicle } from '@prisma/client';
-import { AVERAGE_MONTHLY_KM, PREVENTIVE_PROFILES, PreventiveProfileKey } from '../config.ts';
+import type { MaintenanceRecord, Vehicle } from '@prisma/client';
+import { AVERAGE_MONTHLY_KM, PREVENTIVE_PROFILES } from '../config.ts';
+import type { PreventiveProfileKey } from '../config.ts';
 import { vehicleCategoryFromPrisma } from '../types.ts';
 import type { SuggestionSummary } from '../types.ts';
 

@@ -1,4 +1,4 @@
-import { VehicleCategory as PrismaVehicleCategory } from '@prisma/client';
+import type { VehicleCategory as PrismaVehicleCategory } from '@prisma/client';
 
 export type UserRoleValue = 'user' | 'admin';
 export type VehicleCategoryValue = 'car' | 'motorcycle' | 'truck' | 'other';
