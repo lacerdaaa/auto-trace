@@ -1,7 +1,7 @@
 import { type NextFunction, type Request, type Response } from 'express';
-import { HttpError } from '../httpErrors.js';
-import { prisma } from '../lib/prisma.js';
-import { decodeAuthToken } from '../security.js';
+import { HttpError } from '../httpErrors.ts';
+import { prisma } from '../lib/prisma.ts';
+import { decodeAuthToken } from '../security.ts';
 
 export const authenticate = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   const header = req.headers.authorization;

@@ -6,8 +6,8 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "dev": "ts-node --esm src/server.ts",
+    "start": "node --experimental-specifier-resolution=node dist/server.js",
+    "dev": "ts-node --esm --experimentalSpecifierResolution node src/server.ts",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate"
   },

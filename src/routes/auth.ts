@@ -1,10 +1,10 @@
 import { User } from '@prisma/client';
 import { Router } from 'express';
-import { authenticate } from '../middlewares/authenticate.js';
-import { HttpError } from '../httpErrors.js';
-import { prisma } from '../lib/prisma.js';
-import { loginSchema, registerSchema } from '../schemas/auth.js';
-import { createAuthToken, hashPassword, verifyPassword } from '../security.js';
+import { authenticate } from '../middlewares/authenticate.ts';
+import { HttpError } from '../httpErrors.ts';
+import { prisma } from '../lib/prisma.ts';
+import { loginSchema, registerSchema } from '../schemas/auth.ts';
+import { createAuthToken, hashPassword, verifyPassword } from '../security.ts';
 
 const mapUserToResponse = (user: User) => ({
   id: user.id,

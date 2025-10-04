@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Readable } from 'stream';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
-import { CERTIFICATE_TEMPLATE_META } from '../config.js';
-import type { SuggestionSummary } from '../types.js';
+import { CERTIFICATE_TEMPLATE_META } from '../config.ts';
+import type { SuggestionSummary } from '../types.ts';
 
 interface CertificateVehicle {
   id: string;

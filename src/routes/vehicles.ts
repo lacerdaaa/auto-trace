@@ -1,13 +1,13 @@
 import { MaintenanceRecord, Vehicle } from '@prisma/client';
 import { Router, type Request } from 'express';
-import { authenticate } from '../middlewares/authenticate.js';
-import { HttpError } from '../httpErrors.js';
-import { prisma } from '../lib/prisma.js';
-import { createMaintenanceSchema, maintenanceQuerySchema } from '../schemas/maintenance.js';
-import { createVehicleSchema, vehicleIdParamSchema } from '../schemas/vehicle.js';
-import { buildSuggestions } from '../services/suggestions.js';
-import { maintenanceDocumentUpload, vehiclePhotoUpload } from '../upload.js';
-import { vehicleCategoryFromPrisma, vehicleCategoryToPrisma } from '../types.js';
+import { authenticate } from '../middlewares/authenticate.ts';
+import { HttpError } from '../httpErrors.ts';
+import { prisma } from '../lib/prisma.ts';
+import { createMaintenanceSchema, maintenanceQuerySchema } from '../schemas/maintenance.ts';
+import { createVehicleSchema, vehicleIdParamSchema } from '../schemas/vehicle.ts';
+import { buildSuggestions } from '../services/suggestions.ts';
+import { maintenanceDocumentUpload, vehiclePhotoUpload } from '../upload.ts';
+import { vehicleCategoryFromPrisma, vehicleCategoryToPrisma } from '../types.ts';
 
 export const vehiclesRouter = Router();
 

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions, type Secret } from 'jsonwebtoken';
 import { User } from '@prisma/client';
-import { JWT_EXPIRES_IN, JWT_SECRET } from './config.js';
+import { JWT_EXPIRES_IN, JWT_SECRET } from './config.ts';
 
 export interface AuthTokenPayload {
   sub: string;

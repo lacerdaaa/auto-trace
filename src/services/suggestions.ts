@@ -1,7 +1,7 @@
 import { MaintenanceRecord, Vehicle } from '@prisma/client';
-import { AVERAGE_MONTHLY_KM, PREVENTIVE_PROFILES, PreventiveProfileKey } from '../config.js';
-import { vehicleCategoryFromPrisma } from '../types.js';
-import type { SuggestionSummary } from '../types.js';
+import { AVERAGE_MONTHLY_KM, PREVENTIVE_PROFILES, PreventiveProfileKey } from '../config.ts';
+import { vehicleCategoryFromPrisma } from '../types.ts';
+import type { SuggestionSummary } from '../types.ts';
 
 const MONTH_IN_MS = 1000 * 60 * 60 * 24 * 30;
 

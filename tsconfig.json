@@ -19,6 +19,7 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true
   },
   "include": ["src"]

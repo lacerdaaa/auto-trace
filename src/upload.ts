@@ -1,6 +1,6 @@
 import multer from 'multer';
 import path from 'node:path';
-import { ensureUploadDirectories, MAINTENANCE_DOC_DIR, VEHICLE_PHOTO_DIR } from './config.js';
+import { ensureUploadDirectories, MAINTENANCE_DOC_DIR, VEHICLE_PHOTO_DIR } from './config.ts';
 
 ensureUploadDirectories();
 

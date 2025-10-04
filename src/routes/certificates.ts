@@ -1,12 +1,12 @@
 import { Certificate, MaintenanceRecord, Vehicle } from '@prisma/client';
 import { Router } from 'express';
-import { authenticate } from '../middlewares/authenticate.js';
-import { HttpError } from '../httpErrors.js';
-import { prisma } from '../lib/prisma.js';
-import { vehicleIdParamSchema } from '../schemas/vehicle.js';
-import { generateCertificate } from '../services/certificates.js';
-import { buildSuggestions } from '../services/suggestions.js';
-import { vehicleCategoryFromPrisma } from '../types.js';
+import { authenticate } from '../middlewares/authenticate.ts';
+import { HttpError } from '../httpErrors.ts';
+import { prisma } from '../lib/prisma.ts';
+import { vehicleIdParamSchema } from '../schemas/vehicle.ts';
+import { generateCertificate } from '../services/certificates.ts';
+import { buildSuggestions } from '../services/suggestions.ts';
+import { vehicleCategoryFromPrisma } from '../types.ts';
 import { z } from 'zod';
 
 export const certificatesRouter = Router();

@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
-import { APP_PORT, UPLOAD_ROOT } from './config.js';
-import { errorHandler } from './middlewares/errorHandler.js';
-import { authRouter } from './routes/auth.js';
-import { certificatesRouter } from './routes/certificates.js';
-import { dashboardRouter } from './routes/dashboard.js';
-import { vehiclesRouter } from './routes/vehicles.js';
-import { connectPrisma, disconnectPrisma } from './lib/prisma.js';
+import { APP_PORT, UPLOAD_ROOT } from './config.ts';
+import { errorHandler } from './middlewares/errorHandler.ts';
+import { authRouter } from './routes/auth.ts';
+import { certificatesRouter } from './routes/certificates.ts';
+import { dashboardRouter } from './routes/dashboard.ts';
+import { vehiclesRouter } from './routes/vehicles.ts';
+import { connectPrisma, disconnectPrisma } from './lib/prisma.ts';
 
 const app = express();
 

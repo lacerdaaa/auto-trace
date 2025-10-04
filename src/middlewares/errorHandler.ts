@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler } from 'express';
-import { HttpError } from '../httpErrors.js';
+import { HttpError } from '../httpErrors.ts';
 import { ZodError } from 'zod';
 import multer from 'multer';
 

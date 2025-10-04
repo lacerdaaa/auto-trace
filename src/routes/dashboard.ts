@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { authenticate } from '../middlewares/authenticate.js';
-import { HttpError } from '../httpErrors.js';
-import { prisma } from '../lib/prisma.js';
-import { buildSuggestions } from '../services/suggestions.js';
+import { authenticate } from '../middlewares/authenticate.ts';
+import { HttpError } from '../httpErrors.ts';
+import { prisma } from '../lib/prisma.ts';
+import { buildSuggestions } from '../services/suggestions.ts';
 
 export const dashboardRouter = Router();
 
