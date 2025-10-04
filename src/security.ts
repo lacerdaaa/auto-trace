@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
+import jwt, { SignOptions, type Secret } from 'jsonwebtoken';
 import { User } from '@prisma/client';
 import { JWT_EXPIRES_IN, JWT_SECRET } from './config.js';
 
@@ -20,14 +20,17 @@ export const verifyPassword = async (password: string, hash: string): Promise<bo
 };
 
 export const createAuthToken = (user: Pick<User, 'id' | 'email' | 'role'>): string => {
-  const payload: Omit<AuthTokenPayload, 'sub'> = { email: user.email, role: user.role };
-  const options: SignOptions = { subject: user.id };
-  if (JWT_EXPIRES_IN) {
-    type JwtExpiresIn = Exclude<SignOptions['expiresIn'], undefined>;
-    options.expiresIn = JWT_EXPIRES_IN as unknown as JwtExpiresIn;
-  }
+  const payload = {
+    email: user.email,
+    role: user.role,
+  };
 
-  return jwt.sign(payload, JWT_SECRET as Secret, options);
+  const options: SignOptions = {
+    subject: String(user.id), 
+    expiresIn: (Number(JWT_EXPIRES_IN)),
+  };
+
+  return jwt.sign(payload, JWT_SECRET, options);
 };
 
 export const decodeAuthToken = (token: string): AuthTokenPayload => {
