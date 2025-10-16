@@ -20,7 +20,8 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true,
   },
   "include": ["src"]
 }

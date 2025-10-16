@@ -25,6 +25,7 @@ const mapVehicle = (vehicle: Vehicle) => ({
   year: vehicle.year,
   category: vehicleCategoryFromPrisma(vehicle.category),
   averageMonthlyKm: vehicle.averageMonthlyKm,
+  initialOdometer: vehicle.initialOdometer,
   photoFileName: vehicle.photoFileName ?? null,
   photoUrl: buildPhotoUrl(vehicle.photoFileName),
   createdAt: vehicle.createdAt.toISOString(),
@@ -77,6 +78,7 @@ vehiclesRouter.post('/', async (req, res, next) => {
         year: parsed.data.year,
         category: vehicleCategoryToPrisma(parsed.data.category),
         averageMonthlyKm: parsed.data.averageMonthlyKm,
+        initialOdometer: parsed.data.initialOdometer,
       },
     });
 

@@ -8,7 +8,9 @@ const MONTH_IN_MS = 1000 * 60 * 60 * 24 * 30;
 
 const estimateCurrentKm = (vehicle: Vehicle, latestMaintenance?: MaintenanceRecord): number => {
   if (!latestMaintenance) {
-    return vehicle.averageMonthlyKm ?? AVERAGE_MONTHLY_KM;
+    const millisSinceCreation = Date.now() - vehicle.createdAt.getTime();
+    const monthsSinceCreation = millisSinceCreation / MONTH_IN_MS;
+    return vehicle.initialOdometer + monthsSinceCreation * (vehicle.averageMonthlyKm ?? AVERAGE_MONTHLY_KM);
   }
 
   const millisSinceLast = Date.now() - latestMaintenance.serviceDate.getTime();
@@ -21,10 +23,18 @@ const getProfileKey = (vehicle: Vehicle): PreventiveProfileKey => {
   return category in PREVENTIVE_PROFILES ? category : 'other';
 };
 
-const estimateDueDate = (lastMaintenance: MaintenanceRecord | undefined, vehicle: Vehicle, targetKm: number): string | undefined => {
+const estimateDueDate = (
+  lastMaintenance: MaintenanceRecord | undefined,
+  vehicle: Vehicle,
+  targetKm: number,
+): string | undefined => {
   if (!lastMaintenance) {
-    const monthsToTarget = targetKm / vehicle.averageMonthlyKm;
-    const dueDate = new Date(Date.now() + monthsToTarget * MONTH_IN_MS);
+    const kmDiff = targetKm - vehicle.initialOdometer;
+    if (kmDiff <= 0) {
+      return vehicle.createdAt.toISOString();
+    }
+    const monthsToTarget = kmDiff / vehicle.averageMonthlyKm;
+    const dueDate = new Date(vehicle.createdAt.getTime() + monthsToTarget * MONTH_IN_MS);
     return dueDate.toISOString();
   }
 
@@ -47,7 +57,7 @@ export const buildSuggestions = (
   const schedule = PREVENTIVE_PROFILES[profileKey];
   const estimatedKm = estimateCurrentKm(vehicle, latestMaintenance);
 
-  const baseOdometer = latestMaintenance?.odometer ?? 0;
+  const baseOdometer = latestMaintenance?.odometer ?? vehicle.initialOdometer;
   const nextStop = schedule.find((item) => item.kmMark > baseOdometer) ?? schedule.at(-1)!;
 
   const kmToNext = Math.max(0, nextStop.kmMark - estimatedKm);
