@@ -7,7 +7,6 @@ import { logger } from '../lib/logger.ts';
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const context = {
-    requestId: req.requestId,
     method: req.method,
     path: req.originalUrl,
   };
