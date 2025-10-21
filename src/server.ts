@@ -1,16 +1,21 @@
 import 'dotenv/config';
+import cors from 'cors';
 import express from 'express';
 import path from 'node:path';
 import { APP_PORT, UPLOAD_ROOT } from './config.ts';
+import { logger } from './lib/logger.ts';
+import { connectPrisma, disconnectPrisma } from './lib/prisma.ts';
 import { errorHandler } from './middlewares/errorHandler.ts';
+import { requestLogger } from './middlewares/requestLogger.ts';
 import { authRouter } from './routes/auth.ts';
 import { certificatesRouter } from './routes/certificates.ts';
 import { dashboardRouter } from './routes/dashboard.ts';
 import { vehiclesRouter } from './routes/vehicles.ts';
-import { connectPrisma, disconnectPrisma } from './lib/prisma.ts';
 
 const app = express();
 
+app.use(requestLogger);
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -31,11 +36,11 @@ if (import.meta.url === `file://${path.resolve(process.argv[1] ?? '')}`) {
     try {
       await connectPrisma();
       const server = app.listen(APP_PORT, () => {
-        console.log(`AutoTrace API rodando na porta ${APP_PORT}`);
+        logger.info('AutoTrace API iniciada', { port: APP_PORT });
       });
 
       const shutdown = async () => {
-        console.log('Encerrando servidor AutoTrace...');
+        logger.info('Encerrando servidor AutoTrace...');
         await disconnectPrisma();
         server.close(() => process.exit(0));
       };
@@ -43,7 +48,7 @@ if (import.meta.url === `file://${path.resolve(process.argv[1] ?? '')}`) {
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
     } catch (error) {
-      console.error('Falha ao iniciar o servidor', error);
+      logger.error('Falha ao iniciar o servidor', { error });
       process.exit(1);
     }
   };
