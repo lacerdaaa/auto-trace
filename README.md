@@ -2,7 +2,7 @@
 
 API de gestão e rastreio de manutenções veiculares com autenticação JWT, upload de arquivos, emissão/validação de certificados em PDF com QR Code e sugestões de manutenção preventiva baseadas em perfis por categoria.
 
-- Stack: Node.js, TypeScript, Express 5, Prisma ORM (PostgreSQL), Zod, Multer, JSON Web Token, bcrypt, PDFKit, QRCode.
+- Stack: Node.js, TypeScript, Express 5, Prisma ORM (PostgreSQL), Zod, JSON Web Token, bcrypt, PDFKit, QRCode.
 - Código de exemplo das rotas: veja `src/server.ts`, `src/routes/*`, `src/services/*`.
 
 ## Sumário
@@ -35,10 +35,13 @@ PORT=3333
 JWT_SECRET="sua-chave-secreta"
 JWT_EXPIRES_IN="1d"        # Ex.: "1d", "12h", "3600" (segundos)
 AVERAGE_MONTHLY_KM=1000     # Km/mês padrão quando aplicável
-# UPLOAD_ROOT=./uploads     # Opcional; diretório base de uploads
+GCS_BUCKET="meu-bucket"              # Obrigatório
+# STORAGE_PUBLIC_BASE_URL="https://storage.googleapis.com/meu-bucket" # Opcional (CDN/domínio)
+# GCS_MAKE_PUBLIC=true               # Defina como "false" se preferir URL assinada
+PRESIGNED_UPLOAD_TTL_MS=900000       # Tempo de vida (ms) do upload pré-assinado (15 min padrão)
 ```
 
-Observação: a aplicação já tem valores padrão para `PORT`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `AVERAGE_MONTHLY_KM` e `UPLOAD_ROOT` caso não sejam definidos.
+Observação: a aplicação já tem valores padrão para `PORT`, `JWT_SECRET`, `JWT_EXPIRES_IN` e `AVERAGE_MONTHLY_KM` caso não sejam definidos. Para armazenamento de arquivos, `GCS_BUCKET` é obrigatório.
 
 ## Instalação
 
@@ -76,7 +79,7 @@ Health check: `GET /health` retorna `{ "status": "ok" }`.
 - `src/services/*`: geração de certificados (PDF+QR) e motor de sugestões.
 - `src/schemas/*`: validações com Zod.
 - `src/config.ts`: configurações da aplicação e perfis preventivos.
-- `src/upload.ts`: configuração do Multer e diretórios de upload.
+- `src/routes/uploads.ts`: rotas de pré-assinatura para uploads (GCS).
 - `prisma/schema.prisma`: modelos e enums da base de dados.
 - `uploads/`: raiz para arquivos salvos (fotos e documentos). Criada automaticamente.
 
@@ -95,15 +98,31 @@ Content-Type: application/json
 
 ## Upload de arquivos
 
-- Implementado com Multer em disco.
-- Diretórios:
-  - Fotos de veículos: `uploads/vehicle-photos`
-  - Documentos de manutenção: `uploads/maintenance-docs`
-- Limites:
-  - Foto: máx. 5 MB; aceita apenas `image/*`.
-  - Documento: máx. 10 MB.
-- Nomes de arquivos gerados com timestamp + hash para evitar colisões.
-- Arquivos estáticos servidos em `GET /uploads/*`.
+Os arquivos agora são enviados diretamente para o provedor de storage via URLs pré-assinadas. Fluxo:
+
+1. Cliente chama `POST /uploads/presign` informando:
+   - `category`: `vehicle-photo` ou `maintenance-document`
+   - `originalName`: nome original do arquivo (para manter extensão)
+   - `contentType`: mimetype do arquivo (ex.: `image/jpeg`, `application/pdf`)
+2. API responde com `{ uploadUrl, fileName, publicUrl, uploadHeaders, expiresAt }`.
+3. O cliente executa um `PUT` para `uploadUrl`, enviando o arquivo bruto com o `Content-Type` informado no passo anterior.
+4. Após o upload, o cliente usa `fileName` para atualizar o veículo/manutenção:
+   - `POST /vehicles/:vehicleId/photo` → body `{ "fileName": "<valor>" }`
+   - `POST /vehicles/:vehicleId/maintenance` → body JSON incluindo `documentFileName` (opcional)
+
+Limites:
+
+- Fotos de veículo: 5 MB, apenas `image/*`.
+- Documentos de manutenção: 10 MB (qualquer mimetype).
+
+As URLs públicas seguem o domínio configurado em `STORAGE_PUBLIC_BASE_URL` ou, caso não seja definido, `https://storage.googleapis.com/<bucket>/<prefix>/<arquivo>`.
+
+### Integração com Google Cloud Storage
+
+1. Crie um bucket com **Uniform bucket-level access** habilitado.
+2. Configure um service account com permissão `Storage Object Admin` e exponha as credenciais via `GOOGLE_APPLICATION_CREDENTIALS` (ou outra estratégia suportada pelo SDK).
+3. Defina `GCS_BUCKET=<nome>` e, opcionalmente, `STORAGE_PUBLIC_BASE_URL` para apontar para um CDN/domínio customizado.
+4. Se desejar que os arquivos fiquem públicos automaticamente, mantenha `GCS_MAKE_PUBLIC=true`. A API tornará o objeto público quando o arquivo for associado ao veículo/manutenção.
 
 ## Sugestões de manutenção
 
@@ -130,6 +149,44 @@ Resultado inclui:
 ## Referência de API
 
 Base URL padrão: `http://localhost:<PORT>`
+
+### Uploads
+
+1) Solicitar URL pré-assinada
+
+- `POST /uploads/presign` (autenticado)
+- Body JSON:
+
+```json
+{
+  "category": "vehicle-photo",
+  "originalName": "foto.jpg",
+  "contentType": "image/jpeg"
+}
+```
+
+- Resposta 200:
+
+```json
+{
+  "upload": {
+    "fileName": "1728654000000-a1b2c3-foto.jpg",
+    "uploadUrl": "https://storage.googleapis.com/<bucket>/vehicle-photos/...",
+    "uploadMethod": "PUT",
+    "uploadHeaders": {
+      "Content-Type": "image/jpeg"
+    },
+    "publicUrl": "https://.../vehicle-photos/1728654000000-a1b2c3-foto.jpg",
+    "expiresAt": "2025-10-04T18:10:00.000Z"
+  }
+}
+```
+
+2) Enviar arquivo
+
+- Faça `PUT uploadUrl` usando os headers retornados (não é necessário enviar o token JWT; a URL pré-assinada já autoriza a requisição).
+
+> Após o envio, use o `fileName` na rota de foto/manutenção correspondente.
 
 ### Autenticação
 
@@ -219,50 +276,48 @@ Observações:
 }
 ```
 
-4) Upload de foto do veículo
+4) Associar foto do veículo
 
 - `POST /vehicles/:vehicleId/photo` (autenticado)
-- Content-Type: `multipart/form-data`
-- Campo: `photo` (arquivo imagem)
+- Body JSON: `{ "fileName": "<valor retornado pelo /uploads/presign>" }`
 
-Exemplo cURL:
+Exemplo cURL (considerando que `PHOTO_FILE` veio da etapa de pré-assinatura):
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
-  -F photo=@/caminho/para/foto.jpg \
+  -H "Content-Type: application/json" \
+  -d "{\"fileName\":\"$PHOTO_FILE\"}" \
   http://localhost:3333/vehicles/<vehicleId>/photo
 ```
 
-- Resposta 200: `{ "vehicle": { ... "photoUrl": "/uploads/vehicle-photos/<arquivo>" } }`
+- Resposta 200: `{ "vehicle": { ... "photoUrl": "<url pública>" } }`
 
 5) Registrar manutenção (com documento opcional)
 
 - `POST /vehicles/:vehicleId/maintenance` (autenticado)
-- Content-Type: `multipart/form-data`
-- Campos:
-  - `serviceType` (texto)
-  - `serviceDate` (data; aceita string parseável, ex.: `2025-10-04`)
-  - `odometer` (inteiro)
-  - `workshop` (texto)
-  - `notes` (opcional)
-  - `document` (arquivo, opcional)
+- Body JSON:
+  - `serviceType`, `serviceDate`, `odometer`, `workshop`, `notes`
+  - `documentFileName` (opcional; passado após upload pré-assinado)
 
 Exemplo cURL:
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
-  -F serviceType="Troca de óleo" \
-  -F serviceDate=2025-10-04 \
-  -F odometer=15000 \
-  -F workshop="Oficina XPTO" \
-  -F notes="Observações" \
-  -F document=@/caminho/nota.pdf \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceType": "Troca de óleo",
+    "serviceDate": "2025-10-04",
+    "odometer": 15000,
+    "workshop": "Oficina XPTO",
+    "notes": "Observações",
+    "documentFileName": "1728654000000-a1b2c3-nota.pdf"
+  }' \
   http://localhost:3333/vehicles/<vehicleId>/maintenance
 ```
 
-- Resposta 201: `{ "maintenance": { ... "documentUrl": "/uploads/maintenance-docs/<arquivo>" } }`
+- Resposta 201: `{ "maintenance": { ... "documentUrl": "<url pública>" } }`
 
 ### Dashboard
 
@@ -319,10 +374,9 @@ curl -i -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-### Health e arquivos estáticos
+### Health
 
 - `GET /health` → `{ "status": "ok" }`.
-- `GET /uploads/*` → serve arquivos enviados (fotos e documentos).
 
 ## Erros e tratamento
 
@@ -330,7 +384,7 @@ curl -i -H "Authorization: Bearer $TOKEN" \
 - Autorização/Autenticação incorretas retornam 401 ou 403.
 - Conflitos (duplicidade) retornam 409.
 - Erros Prisma retornam 400/409 com metadados úteis.
-- Upload inválido retorna 400 (erros Multer).
+- Upload inválido retorna 400 com mensagem indicando tamanho/tipo inválido.
 - Erros não tratados retornam 500.
 
 Formato de erro (exemplo):
@@ -361,7 +415,6 @@ Enums:
 - Placas são normalizadas (sem espaços e em maiúsculas) e únicas por sistema.
 - E-mails são salvos em minúsculas e são únicos.
 - Datas são retornadas como ISO string.
-- Diretórios de upload são criados automaticamente no startup do módulo de upload.
 - Algumas categorias extras (`truck`, `other`) existem nos perfis preventivos, mas o endpoint de criação de veículo atualmente aceita apenas `car` e `motorcycle`.
 - Para alterar perfis/checklists, edite `src/config.ts` (`PREVENTIVE_PROFILES`).
 
@@ -440,25 +493,43 @@ Anote o `vehicle.id` retornado (é um UUID). Você também pode listar os seus v
 curl -s -H "Authorization: Bearer $TOKEN" "$BASE_URL/vehicles"
 ```
 
-6) (Opcional) Envie uma foto do veículo
+6) (Opcional) Faça upload de uma foto usando o fluxo pré-assinado
 
 ```bash
+# Solicite a URL de upload
+PHOTO_UPLOAD=$(curl -s -X POST "$BASE_URL/uploads/presign" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"category":"vehicle-photo","originalName":"foto.jpg","contentType":"image/jpeg"}')
+
+PHOTO_URL=$(echo "$PHOTO_UPLOAD" | jq -r '.upload.uploadUrl')
+PHOTO_FILE=$(echo "$PHOTO_UPLOAD" | jq -r '.upload.fileName')
+
+# Faça o PUT direto para o provedor (Content-Type precisa bater)
+curl -s -X PUT "$PHOTO_URL" \
+  -H "Content-Type: image/jpeg" \
+  --data-binary @/caminho/para/foto.jpg
+
+# Associe ao veículo
 curl -s -X POST "$BASE_URL/vehicles/<vehicleId>/photo" \
   -H "Authorization: Bearer $TOKEN" \
-  -F photo=@/caminho/para/foto.jpg
+  -H "Content-Type: application/json" \
+  -d "{\"fileName\":\"$PHOTO_FILE\"}"
 ```
 
-7) Registre uma manutenção (com documento opcional)
+7) Registre uma manutenção (usando JSON; `documentFileName` é opcional)
 
 ```bash
 curl -s -X POST "$BASE_URL/vehicles/<vehicleId>/maintenance" \
   -H "Authorization: Bearer $TOKEN" \
-  -F serviceType="Troca de óleo" \
-  -F serviceDate=2025-10-04 \
-  -F odometer=15000 \
-  -F workshop="Oficina XPTO" \
-  -F notes="Observações" \
-  -F document=@/caminho/nota.pdf
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceType": "Troca de óleo",
+    "serviceDate": "2025-10-04",
+    "odometer": 15000,
+    "workshop": "Oficina XPTO",
+    "notes": "Observações"
+  }'
 ```
 
 8) Consulte detalhes + sugestões do veículo
@@ -491,7 +562,7 @@ Pronto! Você percorreu o fluxo completo.
 
 Campos comuns:
 - IDs são UUID (ex.: `d290f1ee-6c54-4b01-90e6-d701748f0851`).
-- Datas são strings ISO (ex.: `2025-10-04T00:00:00.000Z`) ou valores parseáveis por Date quando enviado em `multipart/form-data`.
+- Datas são strings ISO (ex.: `2025-10-04T00:00:00.000Z`) ou valores parseáveis por Date (ex.: `2025-10-04`).
 
 1) Autenticação
 
@@ -524,14 +595,13 @@ Campos comuns:
   - Inclui `maintenances` e resumo `suggestions`
 
 - Foto do veículo: `POST /vehicles/:vehicleId/photo`
-  - `multipart/form-data`, campo `photo` (image/*, até 5 MB)
-  - Retorna `photoUrl` acessível em `/uploads/vehicle-photos/<arquivo>`
+  - Body JSON `{ "fileName": "<valor retornado em /uploads/presign>" }`
+  - Retorna `photoUrl` com base no storage configurado
 
 - Registrar manutenção: `POST /vehicles/:vehicleId/maintenance`
-  - `multipart/form-data` com:
-    - `serviceType` (min 2), `serviceDate`, `odometer` (inteiro >= 0)
-    - `workshop` (min 2), `notes` (opcional)
-    - `document` (opcional, até 10 MB)
+  - Body JSON:
+    - `serviceType`, `serviceDate`, `odometer`, `workshop`, `notes`
+    - `documentFileName` opcional (valor vindo do `/uploads/presign`)
 
 3) Dashboard
 
@@ -551,7 +621,7 @@ Campos comuns:
 - Faça a requisição `POST /auth/register` ou `POST /auth/login`.
 - Salve o `token` retornado como variável do ambiente.
 - Nas rotas autenticadas, configure o header `Authorization` com `Bearer {{ token }}`.
-- Para `multipart/form-data`, use a aba de arquivos (file picker) e os campos de texto conforme descrito acima.
+- Para enviar arquivos, primeiro chame `POST /uploads/presign`, faça o `PUT` para o `uploadUrl` retornado e, por fim, envie o `fileName` no endpoint de foto/manutenção correspondente.
 
 ## Dicas e Solução de Problemas
 

@@ -1,20 +1,24 @@
 import type { MaintenanceRecord, Vehicle } from '@prisma/client';
 import { Router, type Request } from 'express';
+import { z } from 'zod';
 import { authenticate } from '../middlewares/authenticate.ts';
 import { HttpError } from '../httpErrors.ts';
 import { prisma } from '../lib/prisma.ts';
+import {
+  doesUploadedFileExist,
+  finalizeUploadedFile,
+  getMaintenanceDocumentUrl,
+  getVehiclePhotoUrl,
+  type UploadCategory,
+} from '../lib/storage.ts';
 import { createMaintenanceSchema, maintenanceQuerySchema } from '../schemas/maintenance.ts';
 import { createVehicleSchema, vehicleIdParamSchema } from '../schemas/vehicle.ts';
 import { buildSuggestions } from '../services/suggestions.ts';
-import { maintenanceDocumentUpload, vehiclePhotoUpload } from '../upload.ts';
 import { vehicleCategoryFromPrisma, vehicleCategoryToPrisma } from '../types.ts';
 
 export const vehiclesRouter = Router();
 
 vehiclesRouter.use(authenticate);
-
-const buildPhotoUrl = (fileName?: string | null) => (fileName ? `/uploads/vehicle-photos/${fileName}` : null);
-const buildDocumentUrl = (fileName?: string | null) => (fileName ? `/uploads/maintenance-docs/${fileName}` : null);
 
 const mapVehicle = (vehicle: Vehicle) => ({
   id: vehicle.id,
@@ -27,7 +31,7 @@ const mapVehicle = (vehicle: Vehicle) => ({
   averageMonthlyKm: vehicle.averageMonthlyKm,
   initialOdometer: vehicle.initialOdometer,
   photoFileName: vehicle.photoFileName ?? null,
-  photoUrl: buildPhotoUrl(vehicle.photoFileName),
+  photoUrl: getVehiclePhotoUrl(vehicle.photoFileName),
   createdAt: vehicle.createdAt.toISOString(),
   updatedAt: vehicle.updatedAt.toISOString(),
 });
@@ -42,7 +46,7 @@ const mapMaintenance = (maintenance: MaintenanceRecord) => ({
   workshop: maintenance.workshop,
   notes: maintenance.notes ?? null,
   documentFileName: maintenance.documentFileName ?? null,
-  documentUrl: buildDocumentUrl(maintenance.documentFileName),
+  documentUrl: getMaintenanceDocumentUrl(maintenance.documentFileName),
   createdAt: maintenance.createdAt.toISOString(),
   updatedAt: maintenance.updatedAt.toISOString(),
 });
@@ -52,6 +56,18 @@ const ensureCurrentUser = (req: Request) => {
     throw new HttpError(401, 'Usuário não autenticado');
   }
   return req.currentUser;
+};
+
+const fileReferenceSchema = z.object({
+  fileName: z.string().min(1),
+});
+
+const ensureUploadedFileForCategory = async (category: UploadCategory, fileName: string): Promise<void> => {
+  const exists = await doesUploadedFileExist(category, fileName);
+  if (!exists) {
+    throw new HttpError(400, 'Arquivo de upload não encontrado ou expirado');
+  }
+  await finalizeUploadedFile(category, fileName);
 };
 
 vehiclesRouter.post('/', async (req, res, next) => {
@@ -137,7 +153,7 @@ vehiclesRouter.get('/:vehicleId', async (req, res, next) => {
   }
 });
 
-vehiclesRouter.post('/:vehicleId/photo', vehiclePhotoUpload.single('photo'), async (req, res, next) => {
+vehiclesRouter.post('/:vehicleId/photo', async (req, res, next) => {
   try {
     const user = ensureCurrentUser(req);
     const params = vehicleIdParamSchema.safeParse(req.params);
@@ -145,15 +161,18 @@ vehiclesRouter.post('/:vehicleId/photo', vehiclePhotoUpload.single('photo'), asy
       throw params.error;
     }
 
-    if (!req.file) {
-      throw new HttpError(400, 'Nenhuma foto enviada');
+    const parsedBody = fileReferenceSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      throw parsedBody.error;
     }
 
     await getVehicleForUser(params.data.vehicleId, user.id);
 
+    await ensureUploadedFileForCategory('vehicle-photo', parsedBody.data.fileName);
+
     const updated = await prisma.vehicle.update({
       where: { id: params.data.vehicleId },
-      data: { photoFileName: req.file.filename },
+      data: { photoFileName: parsedBody.data.fileName },
     });
 
     return res.json({ vehicle: mapVehicle(updated) });
@@ -162,43 +181,45 @@ vehiclesRouter.post('/:vehicleId/photo', vehiclePhotoUpload.single('photo'), asy
   }
 });
 
-vehiclesRouter.post(
-  '/:vehicleId/maintenance',
-  maintenanceDocumentUpload.single('document'),
-  async (req, res, next) => {
-    try {
-      const user = ensureCurrentUser(req);
-      const params = vehicleIdParamSchema.safeParse(req.params);
-      if (!params.success) {
-        throw params.error;
-      }
-
-      const parsedBody = createMaintenanceSchema.safeParse(req.body);
-      if (!parsedBody.success) {
-        throw parsedBody.error;
-      }
-
-      await getVehicleForUser(params.data.vehicleId, user.id);
-
-      const maintenance = await prisma.maintenanceRecord.create({
-        data: {
-          vehicleId: params.data.vehicleId,
-          userId: user.id,
-          serviceType: parsedBody.data.serviceType,
-          serviceDate: parsedBody.data.serviceDate,
-          odometer: parsedBody.data.odometer,
-          workshop: parsedBody.data.workshop,
-          notes: parsedBody.data.notes ?? null,
-          documentFileName: req.file?.filename ?? null,
-        },
-      });
-
-      return res.status(201).json({ maintenance: mapMaintenance(maintenance) });
-    } catch (error) {
-      return next(error);
+vehiclesRouter.post('/:vehicleId/maintenance', async (req, res, next) => {
+  try {
+    const user = ensureCurrentUser(req);
+    const params = vehicleIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      throw params.error;
     }
-  },
-);
+
+    const parsedBody = createMaintenanceSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      throw parsedBody.error;
+    }
+
+    await getVehicleForUser(params.data.vehicleId, user.id);
+
+    let documentFileName: string | null = null;
+    if (parsedBody.data.documentFileName) {
+      await ensureUploadedFileForCategory('maintenance-document', parsedBody.data.documentFileName);
+      documentFileName = parsedBody.data.documentFileName;
+    }
+
+    const maintenance = await prisma.maintenanceRecord.create({
+      data: {
+        vehicleId: params.data.vehicleId,
+        userId: user.id,
+        serviceType: parsedBody.data.serviceType,
+        serviceDate: parsedBody.data.serviceDate,
+        odometer: parsedBody.data.odometer,
+        workshop: parsedBody.data.workshop,
+        notes: parsedBody.data.notes ?? null,
+        documentFileName,
+      },
+    });
+
+    return res.status(201).json({ maintenance: mapMaintenance(maintenance) });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 vehiclesRouter.get('/:vehicleId/maintenance', async (req, res, next) => {
   try {

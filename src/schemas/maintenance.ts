@@ -6,6 +6,7 @@ export const createMaintenanceSchema = z.object({
   odometer: z.coerce.number().int().nonnegative(),
   workshop: z.string().min(2, 'Informe a oficina'),
   notes: z.string().max(1000).optional(),
+  documentFileName: z.string().min(1).optional(),
 });
 
 export const maintenanceQuerySchema = z.object({

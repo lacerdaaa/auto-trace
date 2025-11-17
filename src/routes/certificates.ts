@@ -8,6 +8,7 @@ import { generateCertificate } from '../services/certificates.ts';
 import { buildSuggestions } from '../services/suggestions.ts';
 import { vehicleCategoryFromPrisma } from '../types.ts';
 import { z } from 'zod';
+import { getVehiclePhotoBuffer } from '../lib/storage.ts';
 
 export const certificatesRouter = Router();
 
@@ -91,11 +92,16 @@ certificatesRouter.get('/:vehicleId', async (req, res, next) => {
 
     const suggestions = buildSuggestions(vehicle, maintenances);
 
+    const vehiclePhotoBuffer = vehicle.photoFileName
+      ? await getVehiclePhotoBuffer(vehicle.photoFileName)
+      : null;
+
     const result = await generateCertificate({
       vehicle: mapVehicleForCertificate(vehicle),
       ownerName: req.currentUser.name,
       maintenances: mapMaintenancesForCertificate(maintenances),
       suggestions,
+      vehiclePhoto: vehiclePhotoBuffer,
     });
 
     await prisma.certificate.create({

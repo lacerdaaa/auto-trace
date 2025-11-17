@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler } from 'express';
-import multer from 'multer';
 import { ZodError } from 'zod';
 import { HttpError } from '../httpErrors.ts';
 import { logger } from '../lib/logger.ts';
@@ -16,15 +15,6 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     return res.status(400).json({
       error: 'Validação falhou',
       details: error.flatten(),
-    });
-  }
-
-  if (error instanceof multer.MulterError) {
-    logger.warn('Upload error', { ...context, code: error.code, field: error.field });
-    return res.status(400).json({
-      error: 'Erro no upload',
-      code: error.code,
-      field: error.field,
     });
   }
 

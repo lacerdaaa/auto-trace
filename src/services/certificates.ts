@@ -28,6 +28,7 @@ interface CertificateContext {
   ownerName: string;
   maintenances: CertificateMaintenanceRecord[];
   suggestions: SuggestionSummary;
+  vehiclePhoto?: Buffer | null;
 }
 
 interface CertificateResult {
@@ -63,6 +64,7 @@ export const generateCertificate = async ({
   ownerName,
   maintenances,
   suggestions,
+  vehiclePhoto,
 }: CertificateContext): Promise<CertificateResult> => {
   const certificateId = randomUUID();
   const qrPayload = {
@@ -95,6 +97,14 @@ export const generateCertificate = async ({
   doc.text(formatLine('Ano', vehicle.year));
   doc.text(formatLine('Categoria', vehicle.category));
   doc.text(formatLine('Média Km/mês', `${vehicle.averageMonthlyKm} km`));
+  if (vehiclePhoto) {
+    doc.moveDown(0.5);
+    doc.image(vehiclePhoto, {
+      fit: [200, 200],
+      align: 'center',
+      valign: 'center',
+    });
+  }
   doc.moveDown();
 
   doc.fontSize(16).text('Histórico de Manutenções');

@@ -1,15 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
 export const APP_PORT = Number.parseInt(process.env.PORT ?? '3333', 10);
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'local-dev-secret';
 export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '1d';
 export const AVERAGE_MONTHLY_KM = Number.parseInt(process.env.AVERAGE_MONTHLY_KM ?? '1000', 10);
-
-const defaultUploadRoot = path.resolve(process.cwd(), 'uploads');
-export const UPLOAD_ROOT = process.env.UPLOAD_ROOT ?? defaultUploadRoot;
-export const VEHICLE_PHOTO_DIR = path.join(UPLOAD_ROOT, 'vehicle-photos');
-export const MAINTENANCE_DOC_DIR = path.join(UPLOAD_ROOT, 'maintenance-docs');
 
 export const CERTIFICATE_TEMPLATE_META = {
   issuer: 'AutoTrace',
@@ -40,11 +32,3 @@ export const PREVENTIVE_PROFILES = {
 } as const;
 
 export type PreventiveProfileKey = keyof typeof PREVENTIVE_PROFILES;
-
-export const ensureUploadDirectories = (): void => {
-  [UPLOAD_ROOT, VEHICLE_PHOTO_DIR, MAINTENANCE_DOC_DIR].forEach((dir) => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
-};

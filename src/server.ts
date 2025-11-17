@@ -2,7 +2,7 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import path from 'node:path';
-import { APP_PORT, UPLOAD_ROOT } from './config.ts';
+import { APP_PORT } from './config.ts';
 import { logger } from './lib/logger.ts';
 import { connectPrisma, disconnectPrisma } from './lib/prisma.ts';
 import { errorHandler } from './middlewares/errorHandler.ts';
@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.ts';
 import { certificatesRouter } from './routes/certificates.ts';
 import { dashboardRouter } from './routes/dashboard.ts';
 import { vehiclesRouter } from './routes/vehicles.ts';
+import { uploadsRouter } from './routes/uploads.ts';
 
 const app = express();
 
@@ -23,7 +24,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use('/uploads', express.static(UPLOAD_ROOT));
+app.use('/uploads', uploadsRouter);
+
 app.use('/auth', authRouter);
 app.use('/vehicles', vehiclesRouter);
 app.use('/dashboard', dashboardRouter);
