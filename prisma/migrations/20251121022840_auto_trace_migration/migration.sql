@@ -27,6 +27,7 @@ CREATE TABLE "Vehicle" (
     "year" INTEGER NOT NULL,
     "category" "VehicleCategory" NOT NULL,
     "averageMonthlyKm" INTEGER NOT NULL,
+    "initialOdometer" INTEGER NOT NULL DEFAULT 0,
     "photoFileName" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

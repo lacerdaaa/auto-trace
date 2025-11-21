@@ -119,10 +119,43 @@ As URLs públicas seguem o domínio configurado em `STORAGE_PUBLIC_BASE_URL` ou,
 
 ### Integração com Google Cloud Storage
 
-1. Crie um bucket com **Uniform bucket-level access** habilitado.
-2. Configure um service account com permissão `Storage Object Admin` e exponha as credenciais via `GOOGLE_APPLICATION_CREDENTIALS` (ou outra estratégia suportada pelo SDK).
-3. Defina `GCS_BUCKET=<nome>` e, opcionalmente, `STORAGE_PUBLIC_BASE_URL` para apontar para um CDN/domínio customizado.
-4. Se desejar que os arquivos fiquem públicos automaticamente, mantenha `GCS_MAKE_PUBLIC=true`. A API tornará o objeto público quando o arquivo for associado ao veículo/manutenção.
+#### Como o recurso funciona
+
+- A rota `POST /uploads/presign` chama `src/lib/storage.ts`, que usa `@google-cloud/storage` para gerar uma URL pré-assinada (método `PUT`).
+- O cliente envia o arquivo diretamente para o bucket usando a URL e o `Content-Type` retornados — o backend não armazena o arquivo localmente.
+- Ao salvar a foto/documento no veículo, a API confirma a existência do objeto no bucket e, se `GCS_MAKE_PUBLIC` estiver habilitado, executa `file.makePublic()` para liberar a URL pública.
+- As URLs públicas seguem o padrão `STORAGE_PUBLIC_BASE_URL/<prefix>/<arquivo>` ou, por padrão, `https://storage.googleapis.com/<bucket>/<prefix>/<arquivo>`.
+
+#### Como configurar o projeto GCP e obter a chave (service account key)
+
+1. Crie ou escolha um projeto no [Google Cloud Console](https://console.cloud.google.com/).
+2. Abra **Cloud Storage > Buckets** e crie um bucket:
+   - Escolha uma região perto dos usuários.
+   - Marque **Uniform bucket-level access** para simplificar o controle de permissões.
+3. Vá em **IAM & Admin > Service Accounts** e crie uma nova service account (ex.: `auto-trace-storage`).
+4. No menu de permissões da service account, adicione pelo menos o papel `Storage Object Admin` ao projeto/bucket.
+5. Na aba **Keys**, clique em **Add Key > Create new key**, escolha **JSON** e faça o download do arquivo. Esse JSON é a “API key” mencionada — ele contém o client email, private key e demais dados usados pelo SDK.
+6. Armazene o JSON em um local seguro no servidor (ex.: `/etc/secrets/auto-trace-gcs.json`) e defina a variável `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/auto-trace-gcs.json`. O SDK do Google usará automaticamente essa credencial.
+
+> Alternativas: você pode usar Workload Identity, Secret Manager ou `gcloud auth application-default login` em ambientes de desenvolvimento, desde que as credenciais sejam expostas ao processo Node.js.
+
+#### Variáveis de ambiente relacionadas
+
+| Variável | Obrigatória | Descrição |
+| --- | --- | --- |
+| `GCS_BUCKET` | Sim | Nome do bucket onde os arquivos serão enviados. Deve existir previamente. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Sim (fora do GCP) | Caminho para o JSON da service account. Em ambientes GCP (Cloud Run, GKE, etc.) pode ser dispensado se o serviço já tiver identidade com permissão. |
+| `STORAGE_PUBLIC_BASE_URL` | Não | Base para montar URLs públicas (CDN, domínio customizado). Quando omitido, usa `https://storage.googleapis.com`. |
+| `GCS_MAKE_PUBLIC` | Não | `true` (padrão) torna o objeto público automaticamente ao associá-lo ao veículo. Defina `false` se preferir URLs assinadas/leitura autenticada. |
+| `PRESIGNED_UPLOAD_TTL_MS` | Não | Tempo de vida das URLs pré-assinadas em milissegundos (padrão 15 minutos). |
+
+#### Checklist rápido
+
+- [ ] Bucket criado e acessível no projeto correto.
+- [ ] Service account com `Storage Object Admin` e chave JSON armazenada com segurança.
+- [ ] Variáveis `GOOGLE_APPLICATION_CREDENTIALS` e `GCS_BUCKET` configuradas antes de subir a API.
+- [ ] (Opcional) CDN/domínio configurado em `STORAGE_PUBLIC_BASE_URL`.
+- [ ] Teste o fluxo chamando `POST /uploads/presign` e enviando um `PUT` para o `uploadUrl` retornado.
 
 ## Sugestões de manutenção
 

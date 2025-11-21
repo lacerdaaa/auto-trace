@@ -1,5 +1,6 @@
 import { Storage } from '@google-cloud/storage';
 import path from 'node:path';
+import { logger } from './logger.ts';
 
 export type UploadCategory = 'vehicle-photo' | 'maintenance-document';
 
@@ -130,8 +131,22 @@ const publishGcsFileIfNeeded = async (category: UploadCategory, fileName: string
   if (!SHOULD_MAKE_GCS_PUBLIC) {
     return;
   }
+
   const file = gcsBucket.file(getObjectKey(category, fileName));
-  await file.makePublic();
+  try {
+    await file.makePublic();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message.includes('uniform bucket-level access')) {
+      logger.warn('Bucket com Uniform bucket-level access – ignorando makePublic', {
+        category,
+        fileName,
+      });
+      return;
+    }
+
+    throw error;
+  }
 };
 
 export const finalizeUploadedFile = async (category: UploadCategory, fileName: string): Promise<void> => {
