@@ -28,20 +28,13 @@ interface CertificateContext {
   ownerName: string;
   maintenances: CertificateMaintenanceRecord[];
   suggestions: SuggestionSummary;
-  vehiclePhoto?: Buffer | null;
+  vehiclePhotos?: Buffer[];
 }
 
 interface CertificateResult {
   certificateId: string;
   buffer: Buffer;
 }
-
-const formatLine = (label: string, value: string | number | null | undefined): string => {
-  if (value === null || value === undefined || value === '') {
-    return `${label}: -`;
-  }
-  return `${label}: ${value}`;
-};
 
 const maintenanceLine = (maintenance: CertificateMaintenanceRecord): string => {
   const date = maintenance.serviceDate.toISOString().split('T')[0];
@@ -64,7 +57,7 @@ export const generateCertificate = async ({
   ownerName,
   maintenances,
   suggestions,
-  vehiclePhoto,
+  vehiclePhotos = [],
 }: CertificateContext): Promise<CertificateResult> => {
   const certificateId = randomUUID();
   const qrPayload = {
@@ -81,56 +74,133 @@ export const generateCertificate = async ({
   doc.info.Title = CERTIFICATE_TEMPLATE_META.title;
   doc.info.Author = CERTIFICATE_TEMPLATE_META.issuer;
 
-  doc.fontSize(22).text(CERTIFICATE_TEMPLATE_META.title, { align: 'center' });
-  doc.moveDown();
-  doc.fontSize(12).text(`ID do Certificado: ${certificateId}`);
-  doc.text(`Emitido por: ${CERTIFICATE_TEMPLATE_META.issuer}`);
-  doc.text(`Data de Emissão: ${new Date().toLocaleString('pt-BR')}`);
-  doc.moveDown();
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const colors = {
+    primary: '#1F2937',
+    accent: '#0EA5E9',
+    text: '#111827',
+    subtle: '#6B7280',
+    border: '#E5E7EB',
+  } as const;
 
-  doc.fontSize(16).text('Dados do Veículo');
-  doc.fontSize(12);
-  doc.text(formatLine('Proprietário', ownerName));
-  doc.text(formatLine('Placa', vehicle.plate));
-  doc.text(formatLine('Modelo', vehicle.model));
-  doc.text(formatLine('Fabricante', vehicle.manufacturer));
-  doc.text(formatLine('Ano', vehicle.year));
-  doc.text(formatLine('Categoria', vehicle.category));
-  doc.text(formatLine('Média Km/mês', `${vehicle.averageMonthlyKm} km`));
-  if (vehiclePhoto) {
+  const drawSectionHeader = (title: string) => {
     doc.moveDown(0.5);
-    doc.image(vehiclePhoto, {
-      fit: [200, 200],
-      align: 'center',
-      valign: 'center',
-    });
-  }
-  doc.moveDown();
+    doc.fillColor(colors.primary).fontSize(16).text(title);
+    doc.strokeColor(colors.accent).lineWidth(1)
+      .moveTo(doc.page.margins.left, doc.y + 2)
+      .lineTo(doc.page.margins.left + pageWidth, doc.y + 2)
+      .stroke();
+    doc.moveDown(0.4);
+    doc.fillColor(colors.text).fontSize(11);
+  };
 
-  doc.fontSize(16).text('Histórico de Manutenções');
-  doc.fontSize(11);
+  const drawInfoRow = (label: string, value: string | number | null) => {
+    doc.fontSize(11)
+      .fillColor(colors.subtle)
+      .text(label, { continued: true })
+      .fillColor(colors.text)
+      .text(` ${value ?? '-'}`);
+  };
+
+  const drawPhotoGrid = (buffers: Buffer[]) => {
+    if (!buffers.length) {
+      doc.fontSize(11).fillColor(colors.subtle).text('Nenhuma foto adicionada.');
+      return;
+    }
+
+    const columns = 3;
+    const size = 130;
+    const gap = 12;
+    let col = 0;
+    let x = doc.page.margins.left;
+    let y = doc.y;
+
+    buffers.forEach((buffer, index) => {
+      if (y + size > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        y = doc.y;
+        x = doc.page.margins.left;
+        col = 0;
+      }
+
+      doc.rect(x - 2, y - 2, size + 4, size + 4).stroke(colors.border);
+      doc.image(buffer, x, y, {
+        fit: [size, size],
+        align: 'center',
+        valign: 'center',
+      });
+
+      col += 1;
+      x += size + gap;
+      if (col === columns) {
+        col = 0;
+        x = doc.page.margins.left;
+        y += size + gap;
+      }
+
+      if (index === buffers.length - 1) {
+        doc.y = y + (col === 0 ? 0 : size + gap);
+      }
+    });
+
+    doc.moveDown();
+  };
+
+  const headerHeight = 70;
+  doc.rect(doc.page.margins.left - 10, doc.y, pageWidth + 20, headerHeight).fill(colors.primary);
+  doc.save();
+  doc.fillColor('#FFFFFF');
+  doc.translate(0, 10);
+  doc.fontSize(22).text(CERTIFICATE_TEMPLATE_META.title, {
+    align: 'center',
+    continued: false,
+  });
+  doc.moveDown(0.2);
+  doc.fontSize(12).text(`ID do Certificado: ${certificateId}`, { align: 'center' });
+  doc.text(`Emitido por: ${CERTIFICATE_TEMPLATE_META.issuer}`, { align: 'center' });
+  doc.text(`Data de Emissão: ${new Date().toLocaleString('pt-BR')}`, { align: 'center' });
+  doc.restore();
+  doc.moveDown(1.5);
+
+  drawSectionHeader('Dados do Veículo');
+  drawInfoRow('Proprietário:', ownerName);
+  drawInfoRow('Placa:', vehicle.plate);
+  drawInfoRow('Modelo:', vehicle.model);
+  drawInfoRow('Fabricante:', vehicle.manufacturer);
+  drawInfoRow('Ano:', vehicle.year);
+  drawInfoRow('Categoria:', vehicle.category);
+  drawInfoRow('Média Km/mês:', `${vehicle.averageMonthlyKm} km`);
+
+  drawSectionHeader('Galeria do Veículo');
+  drawPhotoGrid(vehiclePhotos);
+
+  drawSectionHeader('Histórico de Manutenções');
   if (maintenances.length === 0) {
-    doc.text('Nenhuma manutenção registrada.');
+    doc.fontSize(11).fillColor(colors.subtle).text('Nenhuma manutenção registrada.');
   } else {
     maintenances.forEach((maintenance) => {
-      doc.text(maintenanceLine(maintenance));
+      doc.fontSize(11).fillColor(colors.text).text(maintenanceLine(maintenance));
     });
   }
   doc.moveDown();
 
-  doc.fontSize(16).text('Próximas Recomendações');
-  doc.fontSize(12);
-  doc.text(formatLine('Próxima manutenção em', `${suggestions.nextMaintenanceKm} km`));
-  doc.text(formatLine('Km restante', `${suggestions.kmToNext} km`));
-  doc.text(`Situação: ${suggestions.overdue ? 'Pendente / Atrasada' : 'Em dia'}`);
+  drawSectionHeader('Próximas Recomendações');
+  drawInfoRow('Próxima manutenção em:', `${suggestions.nextMaintenanceKm} km`);
+  drawInfoRow('Km restante:', `${suggestions.kmToNext} km`);
+  drawInfoRow('Situação:', suggestions.overdue ? 'Pendente / Atrasada' : 'Em dia');
   if (suggestions.estimatedDueDate) {
-    doc.text(`Prazo estimado: ${new Date(suggestions.estimatedDueDate).toLocaleDateString('pt-BR')}`);
+    drawInfoRow('Prazo estimado:', new Date(suggestions.estimatedDueDate).toLocaleDateString('pt-BR'));
   }
   doc.moveDown();
 
-  doc.fontSize(14).text('Checklist Diferenciado');
-  doc.fontSize(11);
-  suggestions.checklist.forEach((item) => doc.text(`• ${item}`));
+  drawSectionHeader('Checklist Diferenciado');
+  if (suggestions.checklist.length === 0) {
+    doc.fontSize(11).fillColor(colors.subtle).text('Nenhum item sugerido.');
+  } else {
+    suggestions.checklist.forEach((item) => {
+      doc.fontSize(11).fillColor(colors.text).text(`• ${item}`);
+    });
+  }
   doc.moveDown();
 
   doc.image(qrBuffer, {

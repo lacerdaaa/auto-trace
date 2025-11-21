@@ -92,16 +92,34 @@ certificatesRouter.get('/:vehicleId', async (req, res, next) => {
 
     const suggestions = buildSuggestions(vehicle, maintenances);
 
-    const vehiclePhotoBuffer = vehicle.photoFileName
-      ? await getVehiclePhotoBuffer(vehicle.photoFileName)
-      : null;
+    const photoRecords = await prisma.vehiclePhoto.findMany({
+      where: { vehicleId: vehicle.id },
+      orderBy: { createdAt: 'asc' },
+      take: 9,
+    });
+
+    const fileNames = photoRecords.map((photo) => photo.fileName);
+    if (vehicle.photoFileName && !fileNames.includes(vehicle.photoFileName)) {
+      fileNames.unshift(vehicle.photoFileName);
+    }
+
+    const photoBuffers = (
+      await Promise.all(
+        fileNames.slice(0, 9).map(async (fileName) => ({
+          fileName,
+          buffer: fileName ? await getVehiclePhotoBuffer(fileName) : null,
+        })),
+      )
+    )
+      .filter((item) => item.buffer)
+      .map((item) => item.buffer as Buffer);
 
     const result = await generateCertificate({
       vehicle: mapVehicleForCertificate(vehicle),
       ownerName: req.currentUser.name,
       maintenances: mapMaintenancesForCertificate(maintenances),
       suggestions,
-      vehiclePhoto: vehiclePhotoBuffer,
+      vehiclePhotos: photoBuffers,
     });
 
     await prisma.certificate.create({

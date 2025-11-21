@@ -31,6 +31,9 @@ dashboardRouter.get('/', async (req, res, next) => {
 
       return {
         vehicleId: vehicle.id,
+        plate: vehicle.plate,
+        manufacturer: vehicle.manufacturer,
+        model: vehicle.model,
         totalMaintenances: maintenances.length,
         lastMaintenanceDate: lastMaintenance?.serviceDate.toISOString() ?? null,
         nextMaintenanceKm: suggestions.nextMaintenanceKm,
