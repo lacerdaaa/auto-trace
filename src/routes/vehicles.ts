@@ -1,4 +1,4 @@
-import type { MaintenanceRecord, Vehicle } from '@prisma/client';
+import type { MaintenanceRecord, Vehicle, VehiclePhoto as PrismaVehiclePhoto } from '@prisma/client';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middlewares/authenticate.ts';
@@ -49,6 +49,14 @@ const mapMaintenance = (maintenance: MaintenanceRecord) => ({
   documentUrl: getMaintenanceDocumentUrl(maintenance.documentFileName),
   createdAt: maintenance.createdAt.toISOString(),
   updatedAt: maintenance.updatedAt.toISOString(),
+});
+
+const mapVehiclePhoto = (photo: PrismaVehiclePhoto) => ({
+  id: photo.id,
+  vehicleId: photo.vehicleId,
+  fileName: photo.fileName,
+  url: getVehiclePhotoUrl(photo.fileName),
+  createdAt: photo.createdAt.toISOString(),
 });
 
 const ensureCurrentUser = (req: Request) => {
@@ -141,12 +149,17 @@ vehiclesRouter.get('/:vehicleId', async (req, res, next) => {
       where: { vehicleId: vehicle.id },
       orderBy: { serviceDate: 'asc' },
     });
+    const photos = await prisma.vehiclePhoto.findMany({
+      where: { vehicleId: vehicle.id },
+      orderBy: { createdAt: 'desc' },
+    });
     const suggestions = buildSuggestions(vehicle, maintenances);
 
     return res.json({
       vehicle: mapVehicle(vehicle),
       maintenances: maintenances.map(mapMaintenance),
       suggestions,
+      photos: photos.map(mapVehiclePhoto),
     });
   } catch (error) {
     return next(error);
@@ -170,12 +183,19 @@ vehiclesRouter.post('/:vehicleId/photo', async (req, res, next) => {
 
     await ensureUploadedFileForCategory('vehicle-photo', parsedBody.data.fileName);
 
+    const photo = await prisma.vehiclePhoto.create({
+      data: {
+        vehicleId: params.data.vehicleId,
+        fileName: parsedBody.data.fileName,
+      },
+    });
+
     const updated = await prisma.vehicle.update({
       where: { id: params.data.vehicleId },
       data: { photoFileName: parsedBody.data.fileName },
     });
 
-    return res.json({ vehicle: mapVehicle(updated) });
+    return res.json({ vehicle: mapVehicle(updated), photo: mapVehiclePhoto(photo) });
   } catch (error) {
     return next(error);
   }

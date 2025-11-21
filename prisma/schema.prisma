@@ -42,6 +42,7 @@ model Vehicle {
 
   maintenances MaintenanceRecord[]
   certificates Certificate[]
+  photos       VehiclePhoto[]
 }
 
 enum VehicleCategory {
@@ -78,4 +79,12 @@ model Certificate {
   maintenanceCount    Int
   lastMaintenanceDate DateTime?
   overdue             Boolean
+}
+
+model VehiclePhoto {
+  id        String   @id @default(uuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  fileName  String
+  createdAt DateTime @default(now())
 }
